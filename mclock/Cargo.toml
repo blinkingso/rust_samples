@@ -1,0 +1,20 @@
+[package]
+name = "mclock"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+byteorder = "1.4.3"
+chrono= "0.4.19"
+rand = "0.8.4"
+structopt = "0.3.25"
+
+# libc on UNIX ecosystem
+[target.'cfg(not(windows))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3.9"
+kernel32-sys = "0.2.2"

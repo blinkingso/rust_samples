@@ -1,0 +1,28 @@
+[alias]
+b = "build"
+r = "run"
+c = "check"
+rr = "run --release"
+nl = "new --lib"
+nb = "new --bin"
+doco = "doc --open --no-deps"
+
+[cargo-new]
+vcs = "git"
+
+[term]
+verbose = false
+color = 'always'
+progress.when = 'auto'
+progress.width = 80
+
+[target.x86_64-unknown-linux-musl] 
+linker = "x86_64-linux-musl-gcc" 
+rustflags = ["-C", "target-feature=+crt-static"] 
+ 
+
+[source.crates-io]
+registry = "https://github.com/rust-lang/crates.io-index"
+replace-with = 'tuna'
+[source.tuna]
+registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"

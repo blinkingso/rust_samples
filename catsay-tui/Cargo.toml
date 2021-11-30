@@ -1,0 +1,9 @@
+[package]
+name = "catsay-tui"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+gtk = {version = "0.3", package = "gtk4"}
+ncurses = "5.101.0"
+structopt = "0.3.25"
