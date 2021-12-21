@@ -1,3 +1,7 @@
+mod auth;
+mod listener;
+mod server;
+
 /// Nacos configuration annotation used to load configurations from remote nacos server.
 /// #[nacos_config(group = "group_name", data_id = "data_id", name = "field name from json", auto_refresh = false, time_interval = "60(unit: seconds, default 60s, valid when auto_fresh = true)")]
 /// attr name is only valid on fields.

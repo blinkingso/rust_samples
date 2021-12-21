@@ -4,4 +4,11 @@ version = "0.1.0"
 edition = "2018"
 
 [workspace]
-members = ["rust_lang", "async-chat", "hello_macro_derive", "hello_macro", "nacos-common", "nacos-common-derive"]
+members =["rust_lang",
+    "async-chat",
+    "hello_macro_derive", "hello_macro",
+    "nacos-client", "nacos-common", "nacos-common-derive"]
+
+
+[dependencies]
+actix-web = "4.0.0-beta.13"
