@@ -1,6 +1,7 @@
+#[macro_use]
 extern crate proc_macro;
+#[macro_use]
 extern crate proc_macro_error;
-
 use proc_macro2::{Ident, Span, TokenStream};
 use proc_macro_error::{abort_call_site, proc_macro_error, set_dummy};
 use quote::{quote, ToTokens};

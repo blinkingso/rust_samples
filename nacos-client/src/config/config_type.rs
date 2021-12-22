@@ -37,3 +37,23 @@ config_type! {
     #[doc = "type of yaml"]
     (YAML, "yaml");
 }
+
+impl From<&str> for ConfigType {
+    fn from(value: &str) -> Self {
+        match value {
+            "text" => ConfigType::TEXT,
+            "json" => ConfigType::JSON,
+            "html" => ConfigType::HTML,
+            "properties" => ConfigType::PROPERTIES,
+            "yaml" => ConfigType::YAML,
+            "xml" => ConfigType::XML,
+            others => panic!("Unsupported config type: {}", others),
+        }
+    }
+}
+
+impl From<ConfigType> for &str {
+    fn from(value: ConfigType) -> Self {
+        value.0
+    }
+}

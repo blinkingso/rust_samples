@@ -1,5 +1,5 @@
 [package]
-name = "nacos-common-derive"
+name = "nacos-config-derive"
 version = "0.1.0"
 edition = "2021"
 keywords = ["nacos"]
@@ -22,9 +22,3 @@ version = "1.0.32"
 
 [dependencies.heck]
 version = "0.3.3"
-
-[dependencies.nacos-common]
-path = "../nacos-common"
-
-[dependencies.getset]
-version = "0.1.2"
