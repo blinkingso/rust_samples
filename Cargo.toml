@@ -7,7 +7,7 @@ edition = "2018"
 members =["rust_lang",
     "async-chat",
     "hello_macro_derive", "hello_macro",
-    "nacos-client", "nacos-common", "nacos-common-derive"]
+    "nacos-client", "nacos-common", "nacos-config-derive"]
 
 
 [dependencies]

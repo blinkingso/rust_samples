@@ -1,7 +1,6 @@
 use crate::property_key_const::{DEFAULT_NAMESPACE, NAMESPACE, SERVER_ADDR};
 use crate::{NacosError, NacosResult, Properties};
 use std::net::{IpAddr, Ipv4Addr};
-use std::num::NonZeroU16;
 use std::str::FromStr;
 
 pub(crate) struct ServerListManager {
@@ -9,28 +8,28 @@ pub(crate) struct ServerListManager {
     namespace: String,
     tenant: Option<String>,
     is_started: bool,
-    endpoint: String,
-    endpoint_port: NonZeroU16,
+    endpoint: Option<String>,
+    endpoint_port: Option<u16>,
 }
 
 impl ServerListManager {
     pub fn init(properties: Properties) -> NacosResult<ServerListManager> {
         let servers = properties.get(SERVER_ADDR);
-        let servers = match servers {
-            None => return Err(NacosError::msg("server_addr is not set.")),
-            Some(server_str) => {
-                /// just ip4 here.
-                let server_str_list = server_str.split(",").collect::<Vec<String>>();
-                server_str_list.iter().flat_map(|server_port| {
-                    let ip_addr = Ipv4Addr::from_str(server_port);
-                    if ip_addr.is_err() {
-                        return Err(NacosError::msg("server_addr parse error."));
-                    }
-                    return Ok(IpAddr::V4(ip_addr.unwrap()));
-                })
-            }
+        if servers.is_none() {
+            return Err(NacosError::msg("server_addr mut be set."));
         }
-        .collect::<Vec<IpAddr>>();
+        let servers = servers
+            .unwrap()
+            .split(",")
+            .into_iter()
+            .flat_map(|address| {
+                let ip_addr = Ipv4Addr::from_str(address);
+                if ip_addr.is_err() {
+                    return None;
+                }
+                return Some(IpAddr::V4(ip_addr.unwrap()));
+            })
+            .collect::<Vec<IpAddr>>();
         if servers.is_empty() {
             return Err(NacosError::msg("server_addr is not set."));
         }
@@ -39,8 +38,8 @@ impl ServerListManager {
             namespace: "".to_string(),
             tenant: None,
             is_started: false,
-            endpoint: "".to_string(),
-            endpoint_port: unsafe { NonZeroU16(8080) },
+            endpoint: None,
+            endpoint_port: Some(8080),
         };
         slm.server_lists = servers;
         slm.namespace = properties

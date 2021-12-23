@@ -1,21 +1,21 @@
-use crate::config_type::ConfigType;
+use super::config_type::ConfigType;
 
 use getset::{Getters, Setters};
 /// Nacos config item properties.
 #[derive(Getters, Setters, Debug)]
-pub struct NacosConfigProperties<'a> {
+pub struct NacosConfigProperties {
     #[getset(get, set)]
-    prefix: &'a str,
+    prefix: String,
     #[getset(get, set)]
-    group_id: &'a str,
+    group_id: String,
     #[getset(get, set)]
-    data_id: &'a str,
+    data_id: String,
     #[getset(get, set)]
     yaml: bool,
     #[getset(get, set)]
     auto_refreshed: bool,
     #[getset(get, set)]
-    config_type: ConfigType,
+    config_type: ConfigType<'static>,
     #[getset(get, set)]
     ignore_invalid_fields: bool,
     #[getset(get, set)]
@@ -25,12 +25,12 @@ pub struct NacosConfigProperties<'a> {
 }
 
 /// default configuration load from.
-impl<'a> Default for NacosConfigProperties<'a> {
+impl Default for NacosConfigProperties {
     fn default() -> Self {
         NacosConfigProperties {
-            prefix: "",
-            group_id: "DEFAULT_GROUP",
-            data_id: "DEFAULT_DATA",
+            prefix: "".to_string(),
+            group_id: "DEFAULT_GROUP".to_string(),
+            data_id: "DEFAULT_DATA".to_string(),
             yaml: false,
             auto_refreshed: false,
             config_type: ConfigType::PROPERTIES,
@@ -41,7 +41,7 @@ impl<'a> Default for NacosConfigProperties<'a> {
     }
 }
 
-impl<'a> NacosConfigProperties<'a> {
+impl NacosConfigProperties {
     /// attr: auto_refreshed
     pub const NACOS_ATTR_NAME_PREFIX: &'static str = "prefix";
     pub const NACOS_ATTR_NAME_DATA_ID: &'static str = "dataId";
@@ -57,7 +57,7 @@ impl<'a> NacosConfigProperties<'a> {
 #[test]
 fn test_getter_setter() {
     let mut ncp = NacosConfigProperties::default();
-    ncp.set_prefix("prefix value");
+    ncp.set_prefix("prefix value".to_string());
     println!("group_id = {}", ncp.group_id());
     println!("{:?}", ncp);
 }

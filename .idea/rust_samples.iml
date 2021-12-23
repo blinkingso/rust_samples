@@ -11,8 +11,8 @@
       <sourceFolder url="file://$MODULE_DIR$/hello_macro/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/hello_macro_derive/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/nacos-client/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/nacos-common-derive/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/nacos-common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/nacos-config-derive/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -1,6 +1,8 @@
+use serde::Deserialize;
+
 /// ConfigType
-#[derive(Debug)]
-pub struct ConfigType(&'static str);
+#[derive(Debug, Deserialize)]
+pub struct ConfigType<'a>(&'a str);
 
 macro_rules! config_type {
     (
@@ -9,15 +11,15 @@ macro_rules! config_type {
             ($type:ident, $value:expr);
         )+
     ) => {
-        impl ConfigType {
+        impl<'a> ConfigType<'a> {
             // const types here.
             $(
                 $(#[$docs])*
-                pub const $type: ConfigType = ConfigType($value);
+                pub const $type: ConfigType<'static> = ConfigType($value);
             )+
 
-            fn get_config_type(&self) -> &str {
-                self.0
+            fn config_type(&self) -> String {
+                self.0.to_string()
             }
         }
     };
@@ -38,7 +40,7 @@ config_type! {
     (YAML, "yaml");
 }
 
-impl From<&str> for ConfigType {
+impl<'a> From<&str> for ConfigType<'a> {
     fn from(value: &str) -> Self {
         match value {
             "text" => ConfigType::TEXT,
@@ -49,11 +51,5 @@ impl From<&str> for ConfigType {
             "xml" => ConfigType::XML,
             others => panic!("Unsupported config type: {}", others),
         }
-    }
-}
-
-impl From<ConfigType> for &str {
-    fn from(value: ConfigType) -> Self {
-        value.0
     }
 }
