@@ -19,15 +19,19 @@ pub struct SecurityProxy {
 }
 
 impl SecurityProxy {
-    pub async fn login(&mut self, servers: &Vec<String>) -> NacosResult<bool> {
+    /// A function login the remote nacos server.
+    /// #Arguments
+    /// *servers: [Vec<String>], server list.
+    /// #Returns
+    pub async fn login(&mut self, servers: &Vec<String>) -> NacosResult<()> {
         let now = chrono::Utc::now().timestamp_millis();
         if now - self.last_refresh_time < self.token_ttl - self.token_refresh_window {
-            return Ok(true);
+            return Ok(());
         }
         for server in servers {
             if self.login_server(server.as_str()).await.is_ok() {
                 self.last_refresh_time = chrono::Utc::now().timestamp_millis();
-                return Ok(true);
+                return Ok(());
             }
         }
         Err(NacosError::msg("nacos server login failed."))
@@ -36,15 +40,13 @@ impl SecurityProxy {
     async fn login_server(&mut self, server: &str) -> NacosResult<()> {
         if !self.username.is_empty() {
             let mut url = format!("http://{}{}{}", server, self.context_path, LOGIN_URL);
-            let mut params = HashMap::with_capacity(2);
-            let mut body = HashMap::with_capacity(2);
-            params.insert("username", self.username.as_str());
-            body.insert("password", self.password.as_str());
+            let params = [("username", self.username.as_str())];
+            let body = [("password", self.password.as_str())];
             if server.contains(HTTP_PREFIX) {
                 url = format!("{}{}{}", server, self.context_path, LOGIN_URL);
             }
 
-            let resp = post_form(url, params, body).await?;
+            let resp = post_form(url, &params, &body).await?;
             eprintln!("resp is : {}", resp);
             let mut result = serde_json::from_str::<HashMap<String, String>>(resp.as_str())?;
             self.access_token = result.get("accessToken").unwrap().to_string();
@@ -57,8 +59,8 @@ impl SecurityProxy {
 
 pub async fn post_form(
     url: String,
-    params: HashMap<&str, &str>,
-    body: HashMap<&str, &str>,
+    params: &[(&str, &str)],
+    body: &[(&str, &str)],
 ) -> NacosResult<String> {
     let mut client = reqwest::ClientBuilder::new()
         .https_only(false)
@@ -68,6 +70,7 @@ pub async fn post_form(
         .gzip(true)
         .build()
         .unwrap();
+    println!("url : {}", &url);
     let response = client.post(&url).query(&params).form(&body).send().await;
     match response {
         Ok(resp) => {
@@ -82,7 +85,10 @@ pub async fn post_form(
                 )))
             }
         }
-        Err(e) => Err(NacosError::new(e)),
+        Err(e) => {
+            eprintln!("error: {:?}", e);
+            return Err(NacosError::new(e));
+        }
     }
 }
 
@@ -93,15 +99,23 @@ fn test_req() {
             username: "nacos".to_string(),
             password: "nacos".to_string(),
             access_token: "".to_string(),
-            context_path: "".to_string(),
+            context_path: "/nacos".to_string(),
             token_ttl: 0,
             last_refresh_time: 0,
             token_refresh_window: 0,
         };
         security
-            .login(&["127.0.0.1::8848".to_string()].to_vec())
+            .login(&["127.0.0.1:8848".to_string()].to_vec())
             .await
     };
 
-    let _ = tokio::runtime::Runtime::new().unwrap().block_on(test);
+    let result = tokio::runtime::Runtime::new().unwrap().block_on(test);
+    match result {
+        Ok(flag) => {
+            println!("login success");
+        }
+        Err(e) => {
+            eprintln!("login error for: {:?}", e);
+        }
+    }
 }

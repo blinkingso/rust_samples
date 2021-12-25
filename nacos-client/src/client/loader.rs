@@ -72,40 +72,68 @@ pub fn build_global_nacos_properties(conf: &NacosConfigProperties) -> Properties
     );
     properties.insert(
         NAMESPACE.to_string(),
-        conf.namespace.unwrap_or(DEFAULT_NAMESPACE.to_string()),
+        conf.namespace
+            .as_ref()
+            .unwrap_or(&DEFAULT_NAMESPACE.to_string())
+            .to_string(),
     );
     properties.insert(
         ENDPOINT.to_string(),
-        conf.endpoint.unwrap_or("".to_string()),
+        conf.endpoint
+            .as_ref()
+            .unwrap_or(&"".to_string())
+            .to_string(),
     );
     properties.insert(
         SECRET_KEY.to_string(),
-        conf.secret_key.unwrap_or("".to_string()),
+        conf.secret_key
+            .as_ref()
+            .unwrap_or(&"".to_string())
+            .to_string(),
     );
     properties.insert(
         ACCESS_KEY.to_string(),
-        conf.access_key.unwrap_or("".to_string()),
+        conf.access_key
+            .as_ref()
+            .unwrap_or(&"".to_string())
+            .to_string(),
     );
     properties.insert(RAM_ROLE_NAME.to_string(), "".to_string());
     properties.insert(
         CONFIG_LONG_POLL_TIMEOUT.to_string(),
-        conf.c_long_poll_timeout.unwrap_or("30".to_string()),
+        conf.c_long_poll_timeout
+            .as_ref()
+            .unwrap_or(&"30000".to_string())
+            .to_string(),
     );
     properties.insert(
         CONFIG_RETRY_TIME.to_string(),
-        conf.c_retry_time.unwrap_or("0".to_string()),
+        conf.c_retry_time
+            .as_ref()
+            .unwrap_or(&"0".to_string())
+            .to_string(),
     );
     properties.insert(
         ENABLE_REMOTE_SYNC_CONFIG.to_string(),
-        conf.enable_remote_sync_config.unwrap_or(false).to_string(),
+        conf.enable_remote_sync_config
+            .as_ref()
+            .unwrap_or(&false)
+            .to_string()
+            .to_string(),
     );
     properties.insert(
         USERNAME.to_string(),
-        conf.username.unwrap_or("".to_string()),
+        conf.username
+            .as_ref()
+            .unwrap_or(&"".to_string())
+            .to_string(),
     );
     properties.insert(
         PASSWORD.to_string(),
-        conf.password.unwrap_or("".to_string()),
+        conf.password
+            .as_ref()
+            .unwrap_or(&"".to_string())
+            .to_string(),
     );
     properties
 }

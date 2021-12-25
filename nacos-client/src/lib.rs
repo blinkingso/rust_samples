@@ -16,9 +16,12 @@ pub type NacosResult<T> = anyhow::Result<T>;
 pub type NacosError = anyhow::Error;
 pub mod property_key_const {
     pub const NAMESPACE: &'static str = "namespace";
-    pub const DEFAULT_NAMESPACE: &'static str = "public";
+    pub const DEFAULT_NAMESPACE: &'static str = "";
     pub const SERVER_ADDR: &'static str = "server_addr";
     pub const ENDPOINT: &'static str = "endpoint";
+    pub const ENDPOINT_PORT: &'static str = "endpoint_port";
+    pub const CONTEXT_PATH: &'static str = "context_path";
+    pub const CLUSTER_NAME: &'static str = "cluster_name";
     pub const SECRET_KEY: &'static str = "secret_key";
     pub const ACCESS_KEY: &'static str = "access_key";
     pub const RAM_ROLE_NAME: &'static str = "ram_role_name";
