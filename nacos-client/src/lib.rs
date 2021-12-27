@@ -31,4 +31,5 @@ pub mod property_key_const {
     pub const ENABLE_REMOTE_SYNC_CONFIG: &'static str = "enable_remote_syn_config";
     pub const USERNAME: &'static str = "username";
     pub const PASSWORD: &'static str = "password";
+    pub const DEFAULT_PORT: &'static str = "8848";
 }

@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::fmt::Formatter;
 
 /// ConfigType
 #[derive(Debug, Deserialize)]
@@ -22,6 +23,24 @@ macro_rules! config_type {
                 self.0.to_string()
             }
         }
+
+        impl<'a> From<&str> for ConfigType<'a> {
+            fn from(value: &str) -> Self {
+                match value {
+                    // "text" => ConfigType::TEXT,
+                    // "json" => ConfigType::JSON,
+                    // "html" => ConfigType::HTML,
+                    // "properties" => ConfigType::PROPERTIES,
+                    // "yaml" => ConfigType::YAML,
+                    // "xml" => ConfigType::XML,
+                    // others => panic!("Unsupported config type: {}", others),
+                    $(
+                        $value => ConfigType::$type,
+                    )+
+                    others => panic!("Unsupported config type: {}", others),
+                }
+            }
+        }
     };
 }
 
@@ -40,16 +59,16 @@ config_type! {
     (YAML, "yaml");
 }
 
-impl<'a> From<&str> for ConfigType<'a> {
-    fn from(value: &str) -> Self {
-        match value {
-            "text" => ConfigType::TEXT,
-            "json" => ConfigType::JSON,
-            "html" => ConfigType::HTML,
-            "properties" => ConfigType::PROPERTIES,
-            "yaml" => ConfigType::YAML,
-            "xml" => ConfigType::XML,
-            others => panic!("Unsupported config type: {}", others),
-        }
+impl<'a> std::fmt::Display for ConfigType<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
+}
+
+#[test]
+fn test_config_type() {
+    let t = ConfigType::XML;
+    println!("type = {}", t);
+    let s = ConfigType::from("json");
+    println!("type = {}", s);
 }
