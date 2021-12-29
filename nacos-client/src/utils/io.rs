@@ -1,8 +1,7 @@
 use crate::config::props::NacosConfigProperties;
 use crate::NacosResult;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use yaml_config::{Config, Environment, File, Source};
+use yaml_config::{Config, Environment, File};
 
 /// read config from a file.
 pub fn read_toml_from_resources<'de, T: Deserialize<'de>>(prefix: &str) -> NacosResult<T> {

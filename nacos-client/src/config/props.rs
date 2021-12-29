@@ -1,7 +1,7 @@
 use super::config_type::ConfigType;
 use crate::NacosError;
 use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::convert::TryFrom;
 use std::str::FromStr;

@@ -1,7 +1,9 @@
-#[macro_use]
-extern crate serde;
 extern crate config as yaml_config;
+extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate log;
+extern crate pretty_env_logger;
 
 use std::collections::HashMap;
 
@@ -32,4 +34,17 @@ pub mod property_key_const {
     pub const USERNAME: &'static str = "username";
     pub const PASSWORD: &'static str = "password";
     pub const DEFAULT_PORT: &'static str = "8848";
+    pub const BASE_PATH: &'static str = "/v1/cs";
+    pub const CONFIG_CONTROLLER_PATH: &'static str = "/configs";
+}
+pub mod constants {
+    pub const CONFIG_LONG_POLL_TIMEOUT: i32 = 30000;
+    pub const MIN_CONFIG_LONG_POLL_TIMEOUT: i32 = 10000;
+    pub const CONFIG_RETRY_TIME: i32 = 1000;
+}
+
+pub mod resp {
+    pub const RESP_ACCESS_TOKEN: &'static str = "accessToken";
+    pub const RESP_TOKEN_TTL: &'static str = "tokenTtl";
+    pub const RESP_GLOBAL_ADMIN: &'static str = "globalAdmin";
 }

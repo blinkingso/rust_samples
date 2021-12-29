@@ -1,39 +1,156 @@
+use crate::client::SafeAccess;
 use crate::property_key_const::{
-    CLUSTER_NAME, CONTEXT_PATH, DEFAULT_PORT, ENDPOINT, ENDPOINT_PORT, NAMESPACE, SERVER_ADDR,
+    CLUSTER_NAME, CONFIG_LONG_POLL_TIMEOUT, CONFIG_RETRY_TIME, CONTEXT_PATH, DEFAULT_NAMESPACE,
+    DEFAULT_PORT, ENABLE_REMOTE_SYNC_CONFIG, ENDPOINT, ENDPOINT_PORT, NAMESPACE, SERVER_ADDR,
 };
+use crate::security::login::login;
 use crate::security::SecurityProxy;
-use crate::{NacosError, NacosResult, Properties};
-use std::cell::RefCell;
-use std::fmt::format;
-use std::sync::{Arc, Mutex};
+use crate::{NacosResult, Properties};
+use std::borrow::Borrow;
+use std::cmp::max;
+use std::fmt::Debug;
+use std::option::Option;
+use std::str::FromStr;
+use tokio::sync::mpsc::Receiver;
 
 const HTTPS: &'static str = "https://";
 const HTTP: &'static str = "http://";
 
+const BELL: u32 = 1;
+
 pub struct ClientWorker {
-    login: SecurityProxy,
+    security_proxy: SafeAccess<SecurityProxy>,
+    enable_remote_sync_config: bool,
+    task_penalty_time: i32,
+    timeout: i32,
+    listen_execute_bell: Receiver<i32>,
 }
 
-impl ClientWorker {
-    pub async fn run(&mut self) {}
+pub struct NacosConfigClient<'a> {
+    properties: &'a Properties,
 }
 
-struct SafeAccess<T> {
-    data: Mutex<Arc<RefCell<T>>>,
-}
-impl<T> SafeAccess<T> {
-    pub fn new(data: T) -> SafeAccess<T> {
-        SafeAccess {
-            data: Mutex::new(Arc::new(RefCell::new(data))),
+pub async fn start_client_worker(
+    security: SafeAccess<SecurityProxy>,
+    server_urls: &Vec<String>,
+    listen_execute_bell: &mut Receiver<u32>,
+) -> NacosResult<()> {
+    {
+        let lock = &security.data.lock().unwrap();
+        if lock.enabled() {
+            let server_urls = server_urls.clone();
+            let security = security.clone();
+            tokio::spawn(async move {
+                if crate::security::login::login(&server_urls, security)
+                    .await
+                    .is_err()
+                {
+                    warn!("login failed...");
+                }
+            });
         }
     }
 
-    pub fn value(&self) -> Arc<RefCell<&T>> {
-        self.data.lock().unwrap().clone()
+    let server_urls = server_urls.clone();
+    let security = security.clone();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            let tx = tx.clone();
+            let server_urls = server_urls.clone();
+            let _ = tx.send(server_urls).await;
+        }
+    });
+    tokio::spawn(async move {
+        while let Some(server_urls) = rx.recv().await {
+            let security = security.clone();
+            if crate::security::login::login(&server_urls, security)
+                .await
+                .is_err()
+            {
+                warn!("login failed...")
+            }
+        }
+    });
+
+    start_client_worker_internal(listen_execute_bell).await
+}
+
+async fn start_client_worker_internal(listen_execute_bell: &mut Receiver<u32>) -> NacosResult<()> {
+    if listen_execute_bell.recv().await.is_some() {}
+    Ok(())
+}
+
+impl ClientWorker {
+    pub const BELL_ITEM: i32 = 0;
+    pub fn new(proxy: SecurityProxy, properties: &Properties, rx: Receiver<i32>) -> Self {
+        let mut client_worker = ClientWorker {
+            listen_execute_bell: rx,
+            security_proxy: SafeAccess::new(proxy),
+            enable_remote_sync_config: false,
+            task_penalty_time: 0,
+            timeout: 0,
+        };
+        // init settings here.
+        client_worker.init(properties);
+        client_worker
+    }
+    pub fn init(&mut self, properties: &Properties) {
+        use crate::constants::CONFIG_LONG_POLL_TIMEOUT as DEFAULT_CONFIG_LONG_POLL_TIMEOUT;
+        use crate::constants::CONFIG_RETRY_TIME as DEFAULT_CONFIG_RETRY_TIME;
+        use crate::constants::MIN_CONFIG_LONG_POLL_TIMEOUT;
+        let timeout = max(
+            get_property_or_default(
+                properties,
+                CONFIG_LONG_POLL_TIMEOUT,
+                DEFAULT_CONFIG_LONG_POLL_TIMEOUT,
+            ),
+            MIN_CONFIG_LONG_POLL_TIMEOUT,
+        );
+        let task_penalty_time =
+            get_property_or_default(properties, CONFIG_RETRY_TIME, DEFAULT_CONFIG_RETRY_TIME);
+        let enable_remote_sync_config =
+            get_property_or_default(properties, ENABLE_REMOTE_SYNC_CONFIG, false);
+        self.enable_remote_sync_config = enable_remote_sync_config;
+        self.timeout = timeout;
+        self.task_penalty_time = task_penalty_time;
     }
 
-    pub fn set(&self, data: T) {
-        *self.data.lock().unwrap().clone().get_mut() = data;
+    // pub async fn start(&mut self, properties: &Properties) -> NacosResult<()> {
+    //     {
+    //         let mut proxy = self.security_proxy.data.clone().lock().await;
+    //         if *proxy.enabled() {
+    //             let slm = ServerListManager::new(properties)?;
+    //             let mut sus = slm.server_urls.data.clone().lock().await;
+    //             let sus = sus.unwrap().clone();
+    //             if *proxy.login(&sus).await.is_err() {
+    //                 warn!("login failed.");
+    //             }
+    //
+    //             // loop login.
+    //             {
+    //                 // let server_urls = server_urls.clone();
+    //                 // let proxy = self.security_proxy.data.clone();
+    //                 // tokio::pin!(proxy);
+    //                 // tokio::pin!(server_urls);
+    //                 // tokio::spawn(async move {
+    //                 //     loop {
+    //                 //         let mut p = { (*proxy.lock().unwrap()).borrow_mut() };
+    //                 //         p.login(&server_urls).await;
+    //                 //     }
+    //                 // });
+    //             }
+    //         }
+    //     }
+    //     self.start_internal().await;
+    //     Ok(())
+    // }
+
+    async fn start_internal(&mut self) {
+        loop {
+            if let Some(_) = self.listen_execute_bell.recv().await {}
+        }
     }
 }
 
@@ -81,18 +198,16 @@ fn init_server_list_param(
     )
 }
 
-fn get_apache_server_list(url: &str) {}
-
 impl ServerListManager {
-    pub fn new(properties: Properties) -> NacosResult<Self> {
+    pub fn new(properties: &Properties) -> NacosResult<Self> {
         let is_started = SafeAccess::new(false);
         let server_addrs_str = properties.get(SERVER_ADDR);
         let namespace = if let Some(namespace) = properties.get(NAMESPACE) {
-            Some(namespace.to_string())
+            namespace.to_string()
         } else {
-            None
+            DEFAULT_NAMESPACE.to_string()
         };
-        if server_addrs_str.is_some() {
+        return if server_addrs_str.is_some() {
             let server_addrs: Vec<String> = server_addrs_str
                 .unwrap()
                 .split(",")
@@ -112,50 +227,54 @@ impl ServerListManager {
             let tenant = if namespace.is_empty() {
                 "".to_string()
             } else {
-                namespace.to_string()
+                namespace.clone()
             };
-            let address_server_url = format!("http://{}:{}/{}", )
-            ServerListManager {
+            Ok(ServerListManager {
                 endpoint: None,
                 endpoint_port: None,
                 context_path: None,
                 server_list_name: None,
-                namespace,
+                namespace: Some(namespace),
                 tenant: Some(tenant),
                 address_server_url: SafeAccess::new(None),
                 server_urls: SafeAccess::new(Some(server_addrs)),
                 is_started,
                 server_addrs_str: SafeAccess::new(Some(server_addrs_str.unwrap().to_string())),
-            }
+            })
         } else {
             // todo! when using endpoint to connect to nacos server.
             let (endpoint, endpoint_port, content_path, server_list_name) =
-                init_server_list_param(&properties);
-            let endpoint_url = if !endpoint.is_empty() {
+                init_server_list_param(properties);
+            let endpoint_url = if endpoint.is_some() {
                 format!("{}:{}", endpoint.unwrap(), endpoint_port.unwrap())
             } else {
                 "".to_string()
             };
-        }
-        todo!()
+
+            Ok(ServerListManager {
+                endpoint: None,
+                endpoint_port: None,
+                context_path: None,
+                server_list_name: None,
+                namespace: None,
+                tenant: None,
+                address_server_url: SafeAccess::new(None),
+                server_urls: SafeAccess::new(None),
+                is_started: SafeAccess::new(false),
+                server_addrs_str: SafeAccess::new(None),
+            })
+        };
     }
+}
 
-    pub fn start(&mut self) {
-        if self.is_started.value().clone() {
-            return;
-        }
-
-        // create a thread to load servers.
-        let server_addrs_url = self
-            .address_server_url
-            .value()
-            .clone()
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .to_string();
-        let task = std::thread::spawn(move || {
-            // do task here.
-        });
+fn get_property_or_default<T>(properties: &Properties, key: &str, default: T) -> T
+where
+    T: FromStr + Debug,
+    T::Err: Debug,
+{
+    if let Some(value) = properties.get(key) {
+        value.as_str().parse::<T>().unwrap()
+    } else {
+        default
     }
 }

@@ -1,13 +1,15 @@
+use crate::client::SafeAccess;
 use crate::{NacosError, NacosResult};
+use log::{debug, error, info, warn};
 use reqwest::{Error, Response, StatusCode};
-use serde_json::Value;
 use std::collections::HashMap;
-use std::ops::Sub;
+use std::sync::Mutex;
 use std::time::Duration;
 
 pub const LOGIN_URL: &'static str = "/v1/auth/users/login";
 pub const HTTP_PREFIX: &'static str = "http";
 
+#[derive(Debug)]
 pub struct SecurityProxy {
     pub username: String,
     pub password: String,
@@ -19,48 +21,83 @@ pub struct SecurityProxy {
 }
 
 impl SecurityProxy {
-    /// A function login the remote nacos server.
-    /// #Arguments
-    /// *servers: [Vec<String>], server list.
-    /// #Returns
-    pub async fn login(&mut self, servers: &Vec<String>) -> NacosResult<()> {
-        let now = chrono::Utc::now().timestamp_millis();
-        if now - self.last_refresh_time < self.token_ttl - self.token_refresh_window {
-            return Ok(());
+    /// Check whether Security is enabled or not.
+    pub fn enabled(&self) -> bool {
+        self.username.is_empty()
+    }
+}
+
+pub mod login {
+    use serde::Deserialize;
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct LoginResponse {
+        token_ttl: i64,
+        global_admin: bool,
+        access_token: String,
+    }
+    use crate::client::SafeAccess;
+    use crate::resp::{RESP_ACCESS_TOKEN, RESP_GLOBAL_ADMIN, RESP_TOKEN_TTL};
+    use crate::security::{post_form, SecurityProxy, HTTP_PREFIX, LOGIN_URL};
+    use crate::{NacosError, NacosResult};
+    use chrono::Utc;
+    use log::debug;
+    use std::collections::HashMap;
+
+    pub async fn login(
+        server_urls: &Vec<String>,
+        security: SafeAccess<SecurityProxy>,
+    ) -> NacosResult<()> {
+        {
+            let now = Utc::now().timestamp_millis();
+            let lock = security.data.lock().unwrap();
+            if now - lock.last_refresh_time < lock.token_ttl - lock.token_refresh_window {
+                return Ok(());
+            }
         }
-        for server in servers {
-            if self.login_server(server.as_str()).await.is_ok() {
-                self.last_refresh_time = chrono::Utc::now().timestamp_millis();
+
+        for server in server_urls {
+            if let Err(e) = login_server(security.clone(), server).await {
+                warn!("login error for: {:?}", e);
+            } else {
                 return Ok(());
             }
         }
         Err(NacosError::msg("nacos server login failed."))
     }
 
-    async fn login_server(&mut self, server: &str) -> NacosResult<()> {
-        if !self.username.is_empty() {
-            let mut url = format!("http://{}{}{}", server, self.context_path, LOGIN_URL);
-            let params = [("username", self.username.as_str())];
-            let body = [("password", self.password.as_str())];
-            if server.contains(HTTP_PREFIX) {
-                url = format!("{}{}{}", server, self.context_path, LOGIN_URL);
+    async fn login_server(
+        security: SafeAccess<SecurityProxy>,
+        server_url: &str,
+    ) -> NacosResult<()> {
+        let mut url;
+        let params;
+        let body;
+        {
+            let lock = security.data.lock().unwrap();
+            url = format!("http://{}{}{}", server_url, lock.context_path, LOGIN_URL);
+            params = [("username", lock.username.clone())];
+            body = [("password", lock.password.clone())];
+            if server_url.contains(HTTP_PREFIX) {
+                url = format!("{}{}{}", server_url, lock.context_path, LOGIN_URL);
             }
-
-            let resp = post_form(url, &params, &body).await?;
-            eprintln!("resp is : {}", resp);
-            let mut result = serde_json::from_str::<HashMap<String, String>>(resp.as_str())?;
-            self.access_token = result.get("accessToken").unwrap().to_string();
-            self.token_ttl = result.get("tokenTtl").unwrap().parse::<i64>()?;
-            self.token_refresh_window = self.token_ttl / 10;
         }
+
+        let resp = post_form(url, &params, &body).await?;
+        debug!("response string is : {}", resp);
+        let result = serde_json::from_str::<LoginResponse>(resp.as_str())?;
+        let mut lock = security.data.lock().unwrap();
+        lock.access_token = result.access_token;
+        lock.token_ttl = result.token_ttl;
+        lock.token_refresh_window = lock.token_ttl / 10;
         Ok(())
     }
 }
 
 pub async fn post_form(
     url: String,
-    params: &[(&str, &str)],
-    body: &[(&str, &str)],
+    params: &[(&'static str, String)],
+    body: &[(&'static str, String)],
 ) -> NacosResult<String> {
     let mut client = reqwest::ClientBuilder::new()
         .https_only(false)
@@ -70,7 +107,7 @@ pub async fn post_form(
         .gzip(true)
         .build()
         .unwrap();
-    println!("url : {}", &url);
+    debug!("request url : {}", &url);
     let response = client.post(&url).query(&params).form(&body).send().await;
     match response {
         Ok(resp) => {
@@ -86,7 +123,7 @@ pub async fn post_form(
             }
         }
         Err(e) => {
-            eprintln!("error: {:?}", e);
+            error!("http response error: {:?}", e);
             return Err(NacosError::new(e));
         }
     }
@@ -94,6 +131,7 @@ pub async fn post_form(
 
 #[test]
 fn test_req() {
+    pretty_env_logger::init();
     let test = async {
         let mut security = SecurityProxy {
             username: "nacos".to_string(),
@@ -104,18 +142,22 @@ fn test_req() {
             last_refresh_time: 0,
             token_refresh_window: 0,
         };
-        security
-            .login(&["127.0.0.1:8848".to_string()].to_vec())
-            .await
+        let sa = SafeAccess::new(security);
+        let res = login::login(&["127.0.0.1:8848".to_string()].to_vec(), sa.clone()).await;
+        if res.is_ok() {
+            Ok(sa)
+        } else {
+            Err(NacosError::msg("login error."))
+        }
     };
 
     let result = tokio::runtime::Runtime::new().unwrap().block_on(test);
     match result {
         Ok(flag) => {
-            println!("login success");
+            info!("login success: {:?}", flag.data.lock().unwrap());
         }
         Err(e) => {
-            eprintln!("login error for: {:?}", e);
+            warn!("login error for: {:?}", e);
         }
     }
 }

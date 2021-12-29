@@ -1,8 +1,6 @@
-#[macro_use]
 extern crate proc_macro;
-#[macro_use]
 extern crate proc_macro_error;
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::{abort_call_site, proc_macro_error, set_dummy};
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
@@ -30,7 +28,7 @@ pub fn nacos_config_derive(input: proc_macro::TokenStream) -> proc_macro::TokenS
 ///     message: String,
 /// }
 /// ```
-fn check_nacos_value_format<T: ToTokens>(tokens: T) -> Option<proc_macro2::TokenStream> {
+fn check_nacos_value_format<T: ToTokens>(to_tokens: T) -> Option<proc_macro2::TokenStream> {
     None
 }
 
