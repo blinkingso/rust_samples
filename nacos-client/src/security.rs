@@ -99,7 +99,7 @@ pub async fn post_form(
     params: &[(&'static str, String)],
     body: &[(&'static str, String)],
 ) -> NacosResult<String> {
-    let mut client = reqwest::ClientBuilder::new()
+    let client = reqwest::ClientBuilder::new()
         .https_only(false)
         .timeout(Duration::from_secs(15))
         .connect_timeout(Duration::from_secs(5))

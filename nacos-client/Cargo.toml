@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 chrono = "0.4.19"
+md5 = "0.7.0"
 
 [dependencies.anyhow]
 version = "1.0.51"

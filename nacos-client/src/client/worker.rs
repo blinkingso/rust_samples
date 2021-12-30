@@ -1,4 +1,4 @@
-use crate::client::SafeAccess;
+use crate::client::{CacheData, SafeAccess};
 use crate::property_key_const::{
     CLUSTER_NAME, CONFIG_LONG_POLL_TIMEOUT, CONFIG_RETRY_TIME, CONTEXT_PATH, DEFAULT_NAMESPACE,
     DEFAULT_PORT, ENABLE_REMOTE_SYNC_CONFIG, ENDPOINT, ENDPOINT_PORT, NAMESPACE, SERVER_ADDR,
@@ -6,11 +6,15 @@ use crate::property_key_const::{
 use crate::security::login::login;
 use crate::security::SecurityProxy;
 use crate::{NacosResult, Properties};
+use chrono::Utc;
 use std::borrow::Borrow;
 use std::cmp::max;
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::option::Option;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::sync::mpsc::Receiver;
 
 const HTTPS: &'static str = "https://";
@@ -74,14 +78,50 @@ pub async fn start_client_worker(
         }
     });
 
-    start_client_worker_internal(listen_execute_bell).await
-}
+    let mut config_rpc_client = ConfigRpcClient {
+        last_all_sync_time: Arc::new(Mutex::new(Utc::now().timestamp_millis())),
+        cache_map: Arc::new(RwLock::new(HashMap::new())),
+    };
 
-async fn start_client_worker_internal(listen_execute_bell: &mut Receiver<u32>) -> NacosResult<()> {
-    if listen_execute_bell.recv().await.is_some() {}
-    Ok(())
+    config_rpc_client.start(listen_execute_bell).await
 }
+pub(crate) struct ConfigRpcClient {
+    pub(crate) last_all_sync_time: Arc<Mutex<i64>>,
+    pub(crate) cache_map: Arc<RwLock<HashMap<String, CacheData>>>,
+}
+const ALL_SYNC_INTERNAL: i64 = 5 * 60 * 1000;
 
+impl ConfigRpcClient {
+    async fn start(&mut self, listen_execute_bell: &mut Receiver<u32>) -> NacosResult<()> {
+        if listen_execute_bell.recv().await.is_some() {
+            let mut listen_cache: HashMap<String, Vec<CacheData>> = HashMap::new();
+            let mut remove_listen_cache: HashMap<String, Vec<CacheData>> = HashMap::new();
+            let now = Utc::now().timestamp_millis();
+            let need_all_sync = {
+                let last_all_sync_time = self.last_all_sync_time.lock().unwrap();
+                now - *last_all_sync_time > ALL_SYNC_INTERNAL
+            };
+
+            {
+                let lock = self.cache_map.read().unwrap();
+                for (_, cache_data) in &*lock {
+                    if cache_data.is_sync_with_server {
+                        cache_data.check_listener_md5();
+                        if !need_all_sync {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if need_all_sync {
+                let mut lock = self.last_all_sync_time.lock().unwrap();
+                *lock = now;
+            }
+        }
+        Ok(())
+    }
+}
 impl ClientWorker {
     pub const BELL_ITEM: i32 = 0;
     pub fn new(proxy: SecurityProxy, properties: &Properties, rx: Receiver<i32>) -> Self {
