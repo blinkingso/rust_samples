@@ -109,7 +109,6 @@ mod tests {
 }
 //! Listener mod and some pojo structs in base.
 
-use std::collections::HashMap;
 use crate::Properties;
 
 #[derive(Debug, PartialEq, Clone)]
