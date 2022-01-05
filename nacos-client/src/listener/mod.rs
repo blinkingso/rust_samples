@@ -107,3 +107,59 @@ mod tests {
         assert!(rx.recv().is_err());
     }
 }
+//! Listener mod and some pojo structs in base.
+
+use std::collections::HashMap;
+use crate::Properties;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum PropertyChangeType {
+    ADDED,
+    MODIFIED,
+    DELETED,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ConfigChangeItem {
+    pub key: String,
+    pub old_value: String,
+    pub new_value: String,
+    pub ty: PropertyChangeType,
+}
+
+pub struct ConfigChangeEvent {
+    pub data: HashMap<String, ConfigChangeItem>,
+}
+
+/// Listener for watch config.
+pub trait Listener {
+
+    /// Receive config info.
+    /// #Parameters
+    /// * config_info [String] config info.
+    /// #Returns
+    /// Nothing.
+    fn receive_config_info(&self, config_info: String);
+}
+
+/// ConfigListener for watch config change event.
+pub trait ConfigListener: Listener {
+
+    /// Receive ConfigChangeEvent
+    /// #Parameters
+    /// * event [ConfigChangeEvent] config change event.
+    /// #Returns
+    /// Nothing.
+    fn receive_config_event(&self, event: ConfigChangeEvent);
+}
+
+/// Properties Listener
+pub trait PropertiesListener: Listener {
+
+    fn receive_config_info(config_info: String) {
+        let properties = Properties::new();
+        for line in config_info.lines() {
+
+        }
+    }
+}
