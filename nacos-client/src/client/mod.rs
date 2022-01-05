@@ -10,67 +10,17 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
+use tokio::runtime::Runtime;
 
 pub mod loader;
 pub mod service;
 pub mod worker;
 
-pub struct GroupKey<'a> {
-    group_id: &'a str,
-    data_id: &'a str,
-    tanant: &'a str,
-}
-
-impl<'a> GroupKey<'a> {
-    pub fn new(data_id: &'a str, group_id: &'a str, tanant: Option<&'a str>) -> NacosResult<Self> {
-        if data_id.is_empty() {
-            return Err(NacosError::msg("data id must not be empty."));
-        }
-        if group_id.is_empty() {
-            return Err(NacosError::msg("group id must not be empty."));
-        }
-        Ok(GroupKey {
-            group_id,
-            data_id,
-            tanant: if let Some(t) = tanant { t } else { "" },
-        })
-    }
-}
-
-impl<'a> Display for GroupKey<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut result = format!("{}+{}", self.data_id, self.group_id);
-        if !self.tanant.is_empty() {
-            result.push_str(format!("+{}", self.tanant).as_str());
-        }
-        write!(f, "{}", result)
-    }
-}
-
-impl<'a> TryFrom<&'a str> for GroupKey<'a> {
-    type Error = NacosError;
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        let mut split = value.split("+");
-        let data_id = if let Some(data) = split.next() {
-            data
-        } else {
-            return Err(NacosError::msg("data id parse error"));
-        };
-        let group_id = if let Some(data) = split.next() {
-            data
-        } else {
-            return Err(NacosError::msg("group parse error"));
-        };
-
-        GroupKey::new(data_id, group_id, split.next())
-    }
-}
-
 pub struct SafeAccess<T>
 where
     T: Send + 'static,
 {
-    pub(crate) data: Arc<Mutex<T>>,
+    pub data: Arc<Mutex<T>>,
 }
 impl<T> SafeAccess<T>
 where
@@ -278,11 +228,11 @@ pub mod config {
             delegate: &Box<dyn Listener>,
         ) -> Self {
             DelegatingEventPublishingListener {
-                config_service: Weak::clone(config_service),
+                config_service: Weak::new(),
                 data_id: data_id.to_string(),
                 group_id: group_id.to_string(),
                 config_type: config_type.to_string(),
-                delegate: Weak::clone(delegate),
+                delegate: Weak::new(),
             }
         }
     }

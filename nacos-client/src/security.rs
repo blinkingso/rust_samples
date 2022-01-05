@@ -161,3 +161,17 @@ fn test_req() {
         }
     }
 }
+
+pub mod identify {
+
+    /// Credential Listener.
+    pub trait CredentialListener {
+        /// update Credential
+        fn on_update_credential(&mut self);
+    }
+
+    /// create a runtime to watch credential.
+    pub fn credential_watcher() -> tokio::runtime::Runtime {
+        todo!()
+    }
+}

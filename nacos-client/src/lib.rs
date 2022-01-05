@@ -8,16 +8,21 @@ extern crate pretty_env_logger;
 extern crate lazy_static;
 
 use std::collections::HashMap;
+use tokio::runtime::Runtime;
 
 pub mod client;
+pub mod common;
 pub mod config;
 pub mod listener;
 pub mod security;
-pub mod utils;
 
 pub type Properties = HashMap<String, String>;
 pub type NacosResult<T> = anyhow::Result<T>;
 pub type NacosError = anyhow::Error;
+pub struct NacosClient {
+    // hold a runtime.
+    rt: Runtime,
+}
 pub mod property_key_const {
     pub const NAMESPACE: &'static str = "namespace";
     pub const DEFAULT_NAMESPACE: &'static str = "";
@@ -44,9 +49,51 @@ pub mod constants {
     pub const MIN_CONFIG_LONG_POLL_TIMEOUT: i32 = 10000;
     pub const CONFIG_RETRY_TIME: i32 = 1000;
 }
-
 pub mod resp {
     pub const RESP_ACCESS_TOKEN: &'static str = "accessToken";
     pub const RESP_TOKEN_TTL: &'static str = "tokenTtl";
     pub const RESP_GLOBAL_ADMIN: &'static str = "globalAdmin";
+}
+pub mod utils {
+    use crate::config::props::NacosConfigProperties;
+    use crate::NacosResult;
+    use serde::Deserialize;
+    use yaml_config::{Config, Environment, File};
+
+    /// read config from a file.
+    pub fn read_toml_from_resources<'de, T: Deserialize<'de>>(prefix: &str) -> NacosResult<T> {
+        let mut s = Config::default();
+        let default = format!("resources/{}.toml", prefix);
+        s.merge(File::with_name(default.as_str()))?;
+        // config environment conf file.
+        let env = std::env::var("RUN_MODE").unwrap_or(String::from("dev"));
+        let file_name = format!("resources/{}-{}.toml", prefix, env);
+        s.merge(File::with_name(file_name.as_str()))?;
+        // from environment
+        s.merge(Environment::with_prefix(prefix))?;
+        Ok(s.try_into()?)
+    }
+
+    #[test]
+    fn test_read() {
+        let a = read_toml_from_resources::<NacosConfigProperties>("nacos");
+        if let Ok(ref p) = a {
+            println!("{:?}", p);
+        } else {
+            eprintln!("error: {:?}", a.unwrap_err());
+        }
+    }
+}
+pub mod crypto {
+    /// get md5 string with lower case.
+    pub fn get_md5_string(message: &str) -> String {
+        let digest = md5::compute(message.as_bytes());
+        format!("{:?}", digest)
+    }
+
+    #[test]
+    fn test_md5() {
+        let digest = get_md5_string("hello world");
+        println!("{}", digest);
+    }
 }
