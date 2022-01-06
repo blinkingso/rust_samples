@@ -57,9 +57,9 @@ impl Display for GroupKey {
     }
 }
 
-impl TryFrom<&str> for GroupKey {
+impl TryFrom<String> for GroupKey {
     type Error = NacosError;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
         let mut split = value.split("+");
         let data_id = if let Some(data) = split.next() {
             data

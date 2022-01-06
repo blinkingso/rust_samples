@@ -1,6 +1,8 @@
 use crate::common::GroupKey;
+use crate::Properties;
 use std::boxed::Box;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -63,6 +65,66 @@ where
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(u8)]
+pub enum PropertyChangeType {
+    ADDED = 0,
+    MODIFIED = 1,
+    DELETED = 2,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ConfigChangeItem {
+    pub key: String,
+    pub old_value: String,
+    pub new_value: String,
+    pub ty: PropertyChangeType,
+}
+
+pub struct ConfigChangeEvent {
+    pub data: HashMap<String, ConfigChangeItem>,
+}
+
+/// Listener for watch config.
+pub trait Listener {
+    type Incoming;
+    /// Receive config info.
+    /// #Parameters
+    /// * config_info [Self::Incoming] config info.
+    /// #Returns
+    /// Nothing.
+    fn receive_config_info(&self, config_info: Self::Incoming);
+}
+
+/// ConfigListener for watch config change event.
+pub trait ConfigListener: Listener {
+    /// Receive ConfigChangeEvent
+    /// #Parameters
+    /// * event [ConfigChangeEvent] config change event.
+    /// #Returns
+    /// Nothing.
+    fn receive_config_event(&self, event: ConfigChangeEvent);
+}
+
+/// Properties Listener
+pub trait PropertiesListener: Listener {
+    fn receive_config_info(config_info: String) {
+        let properties = Properties::new();
+        for line in config_info.lines() {}
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct ManagerListenerWrap<L>
+where
+    L: Listener<Incoming = String> + Send + Sync + 'static + Clone + Eq + PartialEq + Hash,
+{
+    pub(crate) in_notifying: bool,
+    pub(crate) listener: L,
+    pub(crate) last_call_md5: String,
+    pub(crate) last_content: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::ListenerSet;
@@ -105,60 +167,5 @@ mod tests {
         assert_eq!(ls.len(), 0);
         ls.notify(&true);
         assert!(rx.recv().is_err());
-    }
-}
-//! Listener mod and some pojo structs in base.
-
-use crate::Properties;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum PropertyChangeType {
-    ADDED,
-    MODIFIED,
-    DELETED,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ConfigChangeItem {
-    pub key: String,
-    pub old_value: String,
-    pub new_value: String,
-    pub ty: PropertyChangeType,
-}
-
-pub struct ConfigChangeEvent {
-    pub data: HashMap<String, ConfigChangeItem>,
-}
-
-/// Listener for watch config.
-pub trait Listener {
-
-    /// Receive config info.
-    /// #Parameters
-    /// * config_info [String] config info.
-    /// #Returns
-    /// Nothing.
-    fn receive_config_info(&self, config_info: String);
-}
-
-/// ConfigListener for watch config change event.
-pub trait ConfigListener: Listener {
-
-    /// Receive ConfigChangeEvent
-    /// #Parameters
-    /// * event [ConfigChangeEvent] config change event.
-    /// #Returns
-    /// Nothing.
-    fn receive_config_event(&self, event: ConfigChangeEvent);
-}
-
-/// Properties Listener
-pub trait PropertiesListener: Listener {
-
-    fn receive_config_info(config_info: String) {
-        let properties = Properties::new();
-        for line in config_info.lines() {
-
-        }
     }
 }

@@ -1,9 +1,12 @@
-use crate::client::{CacheData, SafeAccess};
-use crate::property_key_const::{
-    CLUSTER_NAME, CONFIG_LONG_POLL_TIMEOUT, CONFIG_RETRY_TIME, CONTEXT_PATH, DEFAULT_NAMESPACE,
-    DEFAULT_PORT, ENABLE_REMOTE_SYNC_CONFIG, ENDPOINT, ENDPOINT_PORT, NAMESPACE, SERVER_ADDR,
+use crate::cache::CacheData;
+use crate::client::SafeAccess;
+use crate::consts::names::*;
+use crate::consts::val::{
+    CONFIG_LONG_POLL_TIMEOUT as DEFAULT_CONFIG_LONG_POLL_TIMEOUT,
+    CONFIG_RETRY_TIME as DEFAULT_CONFIG_RETRY_TIME, DEFAULT_NAMESPACE,
+    MIN_CONFIG_LONG_POLL_TIMEOUT,
 };
-use crate::security::login::login;
+use crate::security::auth::login;
 use crate::security::SecurityProxy;
 use crate::{NacosResult, Properties};
 use chrono::Utc;
@@ -45,7 +48,7 @@ pub async fn start_client_worker(
             let server_urls = server_urls.clone();
             let security = security.clone();
             tokio::spawn(async move {
-                if crate::security::login::login(&server_urls, security)
+                if crate::security::auth::login(&server_urls, security)
                     .await
                     .is_err()
                 {
@@ -69,7 +72,7 @@ pub async fn start_client_worker(
     tokio::spawn(async move {
         while let Some(server_urls) = rx.recv().await {
             let security = security.clone();
-            if crate::security::login::login(&server_urls, security)
+            if crate::security::auth::login(&server_urls, security)
                 .await
                 .is_err()
             {
@@ -105,12 +108,12 @@ impl ConfigRpcClient {
             {
                 let lock = self.cache_map.read().unwrap();
                 for (_, cache_data) in &*lock {
-                    if cache_data.is_sync_with_server {
-                        cache_data.check_listener_md5();
-                        if !need_all_sync {
-                            continue;
-                        }
-                    }
+                    // if cache_data.is_sync_with_server {
+                    //     cache_data.check_listener_md5();
+                    //     if !need_all_sync {
+                    //         continue;
+                    //     }
+                    // }
                 }
             }
 
@@ -137,9 +140,6 @@ impl ClientWorker {
         client_worker
     }
     pub fn init(&mut self, properties: &Properties) {
-        use crate::constants::CONFIG_LONG_POLL_TIMEOUT as DEFAULT_CONFIG_LONG_POLL_TIMEOUT;
-        use crate::constants::CONFIG_RETRY_TIME as DEFAULT_CONFIG_RETRY_TIME;
-        use crate::constants::MIN_CONFIG_LONG_POLL_TIMEOUT;
         let timeout = max(
             get_property_or_default(
                 properties,

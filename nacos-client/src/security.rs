@@ -27,8 +27,15 @@ impl SecurityProxy {
     }
 }
 
-pub mod login {
+pub mod auth {
+    use crate::client::SafeAccess;
+    use crate::consts::res_names::{RESP_ACCESS_TOKEN, RESP_GLOBAL_ADMIN, RESP_TOKEN_TTL};
+    use crate::security::{post_form, SecurityProxy, HTTP_PREFIX, LOGIN_URL};
+    use crate::{NacosError, NacosResult};
+    use chrono::Utc;
+    use log::debug;
     use serde::Deserialize;
+    use std::collections::HashMap;
     #[derive(Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct LoginResponse {
@@ -36,13 +43,6 @@ pub mod login {
         global_admin: bool,
         access_token: String,
     }
-    use crate::client::SafeAccess;
-    use crate::resp::{RESP_ACCESS_TOKEN, RESP_GLOBAL_ADMIN, RESP_TOKEN_TTL};
-    use crate::security::{post_form, SecurityProxy, HTTP_PREFIX, LOGIN_URL};
-    use crate::{NacosError, NacosResult};
-    use chrono::Utc;
-    use log::debug;
-    use std::collections::HashMap;
 
     pub async fn login(
         server_urls: &Vec<String>,
@@ -143,7 +143,7 @@ fn test_req() {
             token_refresh_window: 0,
         };
         let sa = SafeAccess::new(security);
-        let res = login::login(&["127.0.0.1:8848".to_string()].to_vec(), sa.clone()).await;
+        let res = auth::login(&["127.0.0.1:8848".to_string()].to_vec(), sa.clone()).await;
         if res.is_ok() {
             Ok(sa)
         } else {

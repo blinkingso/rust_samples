@@ -6,6 +6,8 @@ edition = "2018"
 [dependencies]
 chrono = "0.4.19"
 md5 = "0.7.0"
+state = {version = "0.5.2", features = ["tls"]}
+bytes = "1.1.0"
 
 [dependencies.anyhow]
 version = "1.0.51"
@@ -43,5 +45,6 @@ version = "0.1.2"
 
 [dependencies.trait-async]
 version = "0.1.24"
-[dependencies.nacos-config-derive]
-path = "../nacos-config-derive"
+
+#[dependencies.nacos-config-derive]
+#path = "../nacos-config-derive"

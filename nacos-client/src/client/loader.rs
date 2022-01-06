@@ -1,14 +1,11 @@
 use crate::config::props::NacosConfigProperties;
 use crate::config::source::NacosPropertySource;
-use crate::property_key_const::{
-    ACCESS_KEY, CONFIG_LONG_POLL_TIMEOUT, CONFIG_RETRY_TIME, DEFAULT_NAMESPACE,
-    ENABLE_REMOTE_SYNC_CONFIG, ENDPOINT, NAMESPACE, PASSWORD, RAM_ROLE_NAME, SECRET_KEY,
-    SERVER_ADDR, USERNAME,
+use crate::consts::names::{
+    ACCESS_KEY, CONFIG_LONG_POLL_TIMEOUT, CONFIG_RETRY_TIME, ENABLE_REMOTE_SYNC_CONFIG, ENDPOINT,
+    NAMESPACE, PASSWORD, RAM_ROLE_NAME, SECRET_KEY, SERVER_ADDR, USERNAME,
 };
+use crate::consts::val::{DEFAULT_GROUP, DEFAULT_NAMESPACE};
 use crate::{NacosError, NacosResult, Properties};
-
-pub const DEFAULT_GROUP: &'static str = "DEFAULT_GROUP";
-
 /// NacosConfigLoader
 pub struct NacosConfigLoader {
     pub properties: NacosConfigProperties,

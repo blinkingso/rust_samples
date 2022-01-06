@@ -1,4 +1,5 @@
 use crate::client::config::ConfigChangeEvent;
+use crate::config::props::NacosConfigProperties;
 #[allow(unused_variables, dead_code, unused_attributes)]
 use crate::{NacosError, NacosResult};
 use serde::Deserialize;
@@ -15,6 +16,13 @@ use tokio::runtime::Runtime;
 pub mod loader;
 pub mod service;
 pub mod worker;
+
+/// nacos client
+pub struct NacosConfigClient {
+    config: NacosConfigProperties,
+}
+
+impl NacosConfigClient {}
 
 pub struct SafeAccess<T>
 where
@@ -41,90 +49,6 @@ where
         SafeAccess {
             data: Arc::clone(&self.data),
         }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ConfigResponse {
-    pub tenant: String,
-    pub data_id: String,
-    pub group: String,
-    pub content: String,
-    pub config_type: String,
-    pub encrypted_data_key: String,
-}
-
-pub struct CacheData {
-    name: String,
-    data_id: String,
-    group: String,
-    tenant: String,
-    md5: String,
-    is_use_local_config: bool,
-    local_config_last_modified: u64,
-    content: String,
-    encrypted_data_key: String,
-    last_modified_ts: u64,
-    task_id: String,
-    ty: String,
-    is_init: bool,
-    is_sync_with_server: bool,
-    listeners: Vec<ListenerWrap>,
-}
-
-async fn safe_notify_listener(
-    data_id: String,
-    group: String,
-    content: String,
-    ty: String,
-    md5: String,
-    encrypted_data_key: String,
-    wrap: &mut ListenerWrap,
-) {
-    let listener = wrap.listener.clone();
-    if wrap.is_notifying {
-        warn!("[notify-current-skip] data_id={}, group={}, md5={}, listener={}, listener is not finish yet,will try next time.",
-                    data_id, group, md5, listener.name());
-        return;
-    }
-
-    let start = Instant::now();
-    let mut cr = ConfigResponse {
-        tenant: "".to_string(),
-        data_id: data_id.clone(),
-        group: group.clone(),
-        content: content.clone(),
-        config_type: "".to_string(),
-        encrypted_data_key: encrypted_data_key.clone(),
-    };
-
-    wrap.is_notifying = true;
-    (*wrap.listener).receive_config_info(content.clone());
-    wrap.last_content = content.clone();
-    wrap.last_call_md5 = md5.clone();
-}
-
-impl CacheData {
-    pub fn check_listener_md5(&self) {
-        for listener in &self.listeners {
-            if self.md5 != listener.last_call_md5 {
-                // notify listener.
-                safe_notify_listener(
-                    self.data_id.clone(),
-                    self.group.clone(),
-                    self.content.clone(),
-                    self.ty.clone(),
-                    self.md5.clone(),
-                    self.encrypted_data_key.clone(),
-                    &mut listener.clone(),
-                );
-            }
-        }
-    }
-
-    pub fn add_listener(&mut self, listener: ListenerWrap) {
-        self.listeners.push(listener);
     }
 }
 
