@@ -1,3 +1,3 @@
-pub mod config_type;
-pub mod props;
-pub mod source;
+pub(crate) mod props;
+pub(crate) mod source;
+pub(crate) mod ty;

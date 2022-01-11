@@ -1,5 +1,5 @@
-server_addr = "127.0.0.1:8848"
-c_type = "PROPERTIES"
+server_addrs = ["127.0.0.1:8848"]
+ty = "PROPERTIES"
 username = "nacos"
 password = "nacos"
 auto_refreshed = true

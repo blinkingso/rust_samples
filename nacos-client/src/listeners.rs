@@ -96,35 +96,6 @@ pub trait Listener {
     fn receive_config_info(&self, config_info: Self::Incoming);
 }
 
-/// ConfigListener for watch config change event.
-pub trait ConfigListener: Listener {
-    /// Receive ConfigChangeEvent
-    /// #Parameters
-    /// * event [ConfigChangeEvent] config change event.
-    /// #Returns
-    /// Nothing.
-    fn receive_config_event(&self, event: ConfigChangeEvent);
-}
-
-/// Properties Listener
-pub trait PropertiesListener: Listener {
-    fn receive_config_info(config_info: String) {
-        let properties = Properties::new();
-        for line in config_info.lines() {}
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct ManagerListenerWrap<L>
-where
-    L: Listener<Incoming = String> + Send + Sync + 'static + Clone + Eq + PartialEq + Hash,
-{
-    pub(crate) in_notifying: bool,
-    pub(crate) listener: L,
-    pub(crate) last_call_md5: String,
-    pub(crate) last_content: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::ListenerSet;
@@ -167,5 +138,157 @@ mod tests {
         assert_eq!(ls.len(), 0);
         ls.notify(&true);
         assert!(rx.recv().is_err());
+    }
+}
+
+pub mod config {
+    use super::{ConfigChangeItem, PropertyChangeType};
+    use crate::client::service::ConfigService;
+    use crate::{NacosError, NacosResult};
+    use std::collections::HashMap;
+    use std::io::BufReader;
+
+    pub fn parse_change_data(
+        last_content: &str,
+        content: &str,
+        ty: &str,
+    ) -> HashMap<String, String> {
+        todo!()
+    }
+
+    pub trait ConfigChangeParser {
+        // judge type.
+        fn is_responsible_for(&self, ty: String) -> bool;
+        /// compare old and new data.
+        fn do_parse(
+            &self,
+            old_content: &str,
+            new_content: &str,
+        ) -> NacosResult<HashMap<String, ConfigChangeItem>>;
+
+        fn filter_change_data(
+            &self,
+            old_map: &HashMap<String, String>,
+            new_map: &HashMap<String, String>,
+        ) -> HashMap<String, ConfigChangeItem> {
+            let mut result: HashMap<String, ConfigChangeItem> = HashMap::with_capacity(16);
+            for (key, val) in old_map {
+                let mut cci: ConfigChangeItem;
+                if new_map.contains_key(key) {
+                    if val.eq(new_map.get(key).unwrap()) {
+                        // no change key-value here.
+                        continue;
+                    }
+                    cci = ConfigChangeItem {
+                        key: key.to_string(),
+                        old_value: val.to_string(),
+                        new_value: new_map.get(key).unwrap().clone(),
+                        ty: PropertyChangeType::MODIFIED,
+                    }
+                } else {
+                    // only old key exists.
+                    cci = ConfigChangeItem {
+                        key: key.to_string(),
+                        old_value: val.to_string(),
+                        new_value: "".to_string(),
+                        ty: PropertyChangeType::DELETED,
+                    }
+                }
+
+                result.insert(key.to_string(), cci);
+            }
+
+            for (key, val) in new_map {
+                if !old_map.contains_key(key) {
+                    let cci = ConfigChangeItem {
+                        key: key.to_string(),
+                        old_value: "".to_string(),
+                        new_value: val.to_string(),
+                        ty: PropertyChangeType::ADDED,
+                    };
+
+                    result.insert(key.to_string(), cci);
+                }
+            }
+            result
+        }
+    }
+
+    pub struct PropertiesConfigChangeParser;
+    pub struct YamlConfigChangeParser;
+    impl PropertiesConfigChangeParser {
+        fn parse_properties(&self, text: &str) -> NacosResult<HashMap<String, String>> {
+            let mut result = HashMap::new();
+            if !text.is_empty() {
+                for line in text.lines().into_iter() {
+                    if line.starts_with('#') {
+                        continue;
+                    }
+                    let (k, v) = line
+                        .split_once('=')
+                        .ok_or(NacosError::msg("properties parse error"))?;
+                    result.insert(k.to_string(), v.to_string());
+                }
+            }
+
+            Ok(result)
+        }
+    }
+    impl ConfigChangeParser for PropertiesConfigChangeParser {
+        fn is_responsible_for(&self, ty: String) -> bool {
+            "PROPERTIES".eq_ignore_ascii_case(ty.as_str())
+        }
+
+        fn do_parse(
+            &self,
+            old_content: &str,
+            new_content: &str,
+        ) -> NacosResult<HashMap<String, ConfigChangeItem>> {
+            let old_map = self.parse_properties(old_content)?;
+            let new_map = self.parse_properties(new_content)?;
+
+            Ok(self.filter_change_data(&old_map, &new_map))
+        }
+    }
+
+    impl ConfigChangeParser for YamlConfigChangeParser {
+        fn is_responsible_for(&self, ty: String) -> bool {
+            "YAML".eq_ignore_ascii_case(ty.as_str())
+        }
+
+        fn do_parse(
+            &self,
+            old_content: &str,
+            new_content: &str,
+        ) -> NacosResult<HashMap<String, ConfigChangeItem>> {
+            todo!()
+        }
+    }
+
+    pub struct ConfigChangeHandler {
+        pub parses: Vec<Box<dyn ConfigChangeParser>>,
+    }
+    impl ConfigChangeHandler {
+        pub fn new() -> Self {
+            let mut parses: Vec<Box<dyn ConfigChangeParser>> = Vec::new();
+            parses.push(Box::new(PropertiesConfigChangeParser));
+            parses.push(Box::new(YamlConfigChangeParser));
+            ConfigChangeHandler { parses }
+        }
+
+        pub fn parse_change_data(
+            &self,
+            old_content: &str,
+            new_content: &str,
+            ty: &str,
+        ) -> NacosResult<HashMap<String, ConfigChangeItem>> {
+            for parser in self.parses.iter() {
+                if parser.is_responsible_for(ty.to_string()) {
+                    return parser.do_parse(old_content, new_content);
+                }
+            }
+
+            Err(NacosError::msg("Unsupported config type parser."))
+        }
     }
 }

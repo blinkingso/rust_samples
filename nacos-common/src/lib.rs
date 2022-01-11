@@ -1,5 +1,6 @@
 mod auth;
 mod listener;
+mod proto;
 mod server;
 
 /// Nacos configuration annotation used to load configurations from remote nacos server.
