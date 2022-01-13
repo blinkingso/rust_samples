@@ -1,5 +1,3 @@
-use std::path::Path;
-
 fn main() {
     protobuf_codegen_pure::Codegen::new()
         .out_dir("src/proto")
