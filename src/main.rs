@@ -1,3 +1,4 @@
+use core::num::dec2flt::number::Number;
 use std::collections::HashMap;
 
 fn main() {
@@ -14,4 +15,14 @@ fn main() {
     };
 
     println!("map is : {:?}", map);
+}
+
+
+pub enum Value {
+    Null,
+    Bool(bool),
+    Number(Number),
+    String(String),
+    Sequence(Sequence),
+    Mapping(Mapping)
 }

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use std::ops::{Deref, DerefMut};
 
-macro_rules! impl_deref_request {
+macro_rules! impl_deref_mut {
     ($target: ty, $target_ty: ty, $target_ident: ident) => {
         impl ::std::ops::Deref for $target {
             type Target = $target_ty;
@@ -40,7 +40,7 @@ macro_rules! impl_server_request {
     }
 }
 
-/// structst to handle communication from client to server.
+/// structs to handle communication from client to server.
 pub mod request {
     use crate::api::ability::ClientAbilities;
     use bytes::Bytes;
@@ -162,9 +162,9 @@ pub mod request {
         }
     }
 
-    impl_deref_request!(ServerCheckRequest, RpcRequest, request);
-    impl_deref_request!(HealthCheckRequest, RpcRequest, request);
-    impl_deref_request!(ConnectionSetupRequest, RpcRequest, request);
+    impl_deref_mut!(ServerCheckRequest, RpcRequest, request);
+    impl_deref_mut!(HealthCheckRequest, RpcRequest, request);
+    impl_deref_mut!(ConnectionSetupRequest, RpcRequest, request);
 
     impl_internal_request!(
         ServerReloadRequest,
@@ -177,8 +177,152 @@ pub mod request {
     impl_server_request!(ConnectResetRequest, ClientDetectionRequest);
 }
 
+macro_rules! response_code {
+    (
+        $(
+            ($code: expr, $konst:ident, $desc: expr);
+        )+
+    ) => {
+        impl ResponseCode {
+            $(
+                pub const $konst:ResponseCode = ResponseCode($code);
+            )+
+
+            fn desc(code: u16) -> Option<&'static str> {
+                match code {
+                    $(
+                        $code => Some($desc),
+                    )+
+                    _ => None,
+                }
+            }
+        }
+    }
+}
 /// structs to handle communication from server to client.
-pub mod response {}
+pub mod response {
+    use log::Level::Error;
+    use serde::{Deserialize, Deserializer, Serialize};
+    use std::collections::HashMap;
+    const CODE_SUCCESS: u16 = 200;
+    const CODE_FAIL: u16 = 500;
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    pub struct ResponseCode {
+        pub code: u16,
+        pub desc: &'static str,
+    }
+
+    impl ResponseCode {
+        pub const SUCCESS: ResponseCode = ResponseCode {
+            code: 200,
+            desc: "Response ok",
+        };
+        pub const FAIL: ResponseCode = ResponseCode {
+            code: 500,
+            desc: "Response fail",
+        };
+
+        pub fn from_u16(code: u16) -> Option<ResponseCode> {
+            match code {
+                CODE_SUCCESS => Some(ResponseCode::SUCCESS),
+                CODE_FAIL => Some(ResponseCode::FAIL),
+                _ => None,
+            }
+        }
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct RpcResponse {
+        pub result_code: u16,
+        pub error_code: u32,
+        pub message: Option<String>,
+        pub request_id: Option<String>,
+    }
+
+    impl RpcResponse {
+        pub fn set_error_info(&mut self, error_code: u32, error_message: String) {
+            self.result_code = ResponseCode::FAIL.code;
+            self.error_code = error_code;
+            self.message = Some(error_message);
+        }
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ClientDetectionResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ConnectResetResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ErrorResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+    }
+
+    impl ErrorResponse {
+        pub fn build(error_code: u32, msg: String) -> ErrorResponse {
+            let mut response = RpcResponse {
+                result_code: CODE_SUCCESS,
+                error_code,
+                message: None,
+                request_id: None,
+            };
+
+            response.set_error_info(error_code, msg);
+            ErrorResponse { response }
+        }
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HealthCheckResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ServerCheckResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+        pub connection_id: String,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ServerLoaderInfoResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+        pub address: String,
+        pub loader_metrics: HashMap<String, Option<String>>,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ServerReloadResponse {
+        #[serde(flatten)]
+        response: RpcResponse,
+    }
+
+    impl_deref_mut!(ClientDetectionResponse, RpcResponse, response);
+    impl_deref_mut!(ConnectResetResponse, RpcResponse, response);
+    impl_deref_mut!(ErrorResponse, RpcResponse, response);
+    impl_deref_mut!(HealthCheckResponse, RpcResponse, response);
+    impl_deref_mut!(ServerCheckResponse, RpcResponse, response);
+    impl_deref_mut!(ServerLoaderInfoResponse, RpcResponse, response);
+    impl_deref_mut!(ServerReloadResponse, RpcResponse, response);
+}
 
 #[async_trait]
 pub trait Requester {
