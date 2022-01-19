@@ -1,8 +1,6 @@
 use crate::grpc_client::request::Request;
-use crate::{Metadata, Payload};
 use bytes::{Bytes, BytesMut};
 use local_ip_address::local_ip;
-use protobuf::Message;
 use serde::{Deserialize, Serialize};
 use std::any::type_name;
 use std::error::Error;
@@ -108,10 +106,10 @@ pub mod ability {
         fn default() -> Self {
             ClientAbilities {
                 remote_ability: ClientRemoteAbility {
-                    support_remote_connection: false,
+                    support_remote_connection: true,
                 },
                 config_ability: ClientConfigAbility {
-                    support_remote_metrics: false,
+                    support_remote_metrics: true,
                 },
                 naming_ability: ClientNamingAbility {
                     support_delta_push: false,
@@ -131,14 +129,14 @@ pub mod request {
     #[serde(rename_all = "camelCase")]
     pub struct Request {
         headers: HashMap<String, String>,
-        request_id: String,
+        request_id: Option<String>,
     }
 
     impl Request {
         pub fn new(headers: HashMap<String, String>, request_id: &str) -> Self {
             Request {
                 headers,
-                request_id: request_id.to_string(),
+                request_id: Some(request_id.to_string()),
             }
         }
         pub fn put_header(&mut self, key: String, value: String) {
@@ -157,12 +155,12 @@ pub mod request {
             self.headers.get(&key).map_or(default_value, |v| v.clone())
         }
 
-        pub fn get_request_id(&self) -> String {
+        pub fn get_request_id(&self) -> Option<String> {
             self.request_id.clone()
         }
 
         pub fn set_request_id(&mut self, request_id: String) {
-            self.request_id = request_id;
+            self.request_id = Some(request_id);
         }
 
         pub fn get_headers(&self) -> HashMap<String, String> {
@@ -174,9 +172,66 @@ pub mod request {
         }
     }
 
+    impl Default for Request {
+        fn default() -> Self {
+            Request {
+                headers: Default::default(),
+                request_id: None,
+            }
+        }
+    }
+
     pub trait InternalRequest {
         fn get_module(&self) -> String {
             String::from("internal")
+        }
+    }
+
+    #[derive(Debug, Serialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HealthCheckRequest {
+        #[serde(flatten)]
+        request: Request,
+    }
+    impl HealthCheckRequest {
+        pub fn new(request: Request) -> Self {
+            HealthCheckRequest { request }
+        }
+    }
+    impl InternalRequest for HealthCheckRequest {}
+    impl Deref for HealthCheckRequest {
+        type Target = Request;
+        fn deref(&self) -> &Self::Target {
+            &self.request
+        }
+    }
+    impl DerefMut for HealthCheckRequest {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.request
+        }
+    }
+
+    #[derive(Debug, Serialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct ServerCheckRequest {
+        #[serde(flatten)]
+        request: Request,
+    }
+    impl ServerCheckRequest {
+        pub fn new(request: Request) -> Self {
+            ServerCheckRequest { request }
+        }
+    }
+    impl InternalRequest for ServerCheckRequest {}
+    impl Deref for ServerCheckRequest {
+        type Target = Request;
+        fn deref(&self) -> &Self::Target {
+            &self.request
+        }
+    }
+    impl DerefMut for ServerCheckRequest {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.request
         }
     }
 
@@ -257,17 +312,17 @@ pub mod request {
 
     #[cfg(test)]
     mod test {
-        use crate::grpc_client::grpc_utils;
         use crate::grpc_client::request::{ConnectionSetupRequest, InternalRequest, Request};
+        use crate::grpc_utils;
 
         #[test]
         fn test_deref_request() {
             let mut request = Request {
                 headers: Default::default(),
-                request_id: "102123".to_string(),
+                request_id: Some("102123".to_string()),
             };
             request.set_request_id("rid-10123123".to_string());
-            println!("{}", request.get_request_id());
+            println!("{:?}", request.get_request_id());
             let connection_setup_request = ConnectionSetupRequest {
                 request,
                 client_version: "2.0.1".to_string(),
@@ -286,8 +341,8 @@ pub mod request {
                 "json str: {}",
                 serde_json::to_string(&connection_setup_request).unwrap()
             );
-            let payload = grpc_utils::convert(&connection_setup_request);
-            println!("payload: {:?}", payload);
+            let payload = grpc_utils::convert_request(&connection_setup_request);
+            println!("payload: {:?}", payload.body.as_ref().unwrap().type_url);
         }
     }
 }
@@ -307,24 +362,6 @@ impl GrpcConnection {
             // Default to a 4kb read buffer.
             buffer: BytesMut::with_capacity(4 * 1024),
         }
-    }
-
-    pub async fn send_request<R: Serialize + Deref<Target = Request>>(&mut self, request: R) {
-        let convert = grpc_utils::convert(&request);
-        match self
-            .stream
-            .write_all(convert.write_to_bytes().unwrap().as_slice())
-            .await
-        {
-            Ok(_) => {
-                log::info!("send request successfully.");
-            }
-            Err(e) => {
-                log::error!("send request error: {:?}", e);
-                return;
-            }
-        }
-        let _ = self.stream.flush().await;
     }
 }
 
@@ -365,10 +402,6 @@ impl GrpcClient {
         connect(server_info.to_socket_addrs()).await
     }
 
-    pub async fn send_request<R: Serialize + Deref<Target = Request>>(&mut self, request: R) {
-        self.connection.send_request(request);
-    }
-
     // pub fn register_server_handler(&mut self, handler: Box<dyn ServerRequestHandler<'static>>) {
     //     let mut lock = self.server_handlers.handlers.lock().unwrap();
     //     lock.push(handler);
@@ -381,55 +414,4 @@ pub async fn connect<'de, A: ToSocketAddrs>(socket_addrs: A) -> Result<GrpcClien
         connection: GrpcConnection::new(stream),
         server_handlers: ServerRequestHandlerArray::new(),
     })
-}
-
-pub mod grpc_utils {
-    use crate::{Metadata, Payload, Request};
-    use local_ip_address::local_ip;
-    use protobuf::well_known_types::Any;
-    use serde::de::DeserializeOwned;
-    use serde::{Deserialize, Serialize};
-    use serde_json::json;
-    use std::any::type_name;
-    use std::borrow::Borrow;
-    use std::error::Error;
-    use std::net::{IpAddr, Ipv4Addr};
-    use std::ops::{Deref, DerefMut};
-
-    pub fn convert<T: Serialize + Deref<Target = Request>>(request: &T) -> Payload {
-        let _type_name = type_name::<T>();
-        let _type_name = _type_name.rsplit_once("::").unwrap();
-        let mut new_meta = Metadata::new();
-        new_meta.set_field_type(_type_name.1.to_string());
-        new_meta.set_clientIp(
-            local_ip()
-                .unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
-                .to_string(),
-        );
-        new_meta.set_headers(request.get_headers());
-        let json_str = serde_json::to_string(&request).unwrap();
-        let mut payload = Payload::new();
-        let mut any = Any::new();
-        any.set_value(Vec::from(json_str.as_bytes()));
-        payload.set_body(any);
-        payload.set_metadata(new_meta);
-        payload
-    }
-
-    pub fn parse<
-        'de,
-        T: Deserialize<'de> + Deref<Target = Request> + DerefMut<Target = Request>,
-    >(
-        payload: &'de Payload,
-    ) -> Result<T, Box<dyn Error>> {
-        let data = payload.get_body().get_value();
-        let mut obj: T = serde_json::from_slice(data)?;
-        obj.put_all_headers(payload.get_metadata().get_headers().clone());
-        Ok(obj)
-    }
-}
-
-#[test]
-fn test_ip() {
-    println!("local ip is: {:?}", local_ip().unwrap())
 }

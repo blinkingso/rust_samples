@@ -8,6 +8,7 @@ pub struct ServerAttr {
     pub long_poll_timeout: Option<u32>,
     pub retry_time: Option<u32>,
     pub max_retry: Option<u8>,
+
     pub enable_remote_sync_config: Option<bool>,
     pub log_level: Option<&'static str>,
     pub cache_path: Option<&'static str>,

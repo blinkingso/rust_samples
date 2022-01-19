@@ -2742,12 +2742,13 @@ dependencies = [
  "async-trait",
  "bytes 1.1.0",
  "env_logger 0.9.0",
+ "futures-core",
+ "futures-util",
  "local-ip-address",
  "log",
  "prost",
+ "prost-build",
  "prost-types",
- "protobuf",
- "protobuf-codegen-pure",
  "serde 1.0.133",
  "serde_json",
  "tokio",
@@ -3563,31 +3564,6 @@ checksum = "534b7a0e836e3c482d2693070f982e39e7611da9695d4d1f5a4b186b51faef0a"
 dependencies = [
  "bytes 1.1.0",
  "prost",
-]
-
-[[package]]
-name = "protobuf"
-version = "2.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
-
-[[package]]
-name = "protobuf-codegen"
-version = "2.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3df8c98c08bd4d6653c2dbae00bd68c1d1d82a360265a5b0bbc73d48c63cb853"
-dependencies = [
- "protobuf",
-]
-
-[[package]]
-name = "protobuf-codegen-pure"
-version = "2.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "394a73e2a819405364df8d30042c0f1174737a763e0170497ec9d36f8a2ea8f7"
-dependencies = [
- "protobuf",
- "protobuf-codegen",
 ]
 
 [[package]]
@@ -4849,7 +4825,6 @@ dependencies = [
  "async-trait",
  "base64 0.13.0",
  "bytes 1.1.0",
- "flate2",
  "futures-core",
  "futures-util",
  "h2",
